@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  kerno:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2025-04-15T16:17:29.408263559Z"
+    description: A Helm chart for Kubernetes
+    digest: 5e06dc3233fa8556e63c2905f140d1633285e8612406d82e7fad9ac2b553f89a
+    name: kerno
+    type: application
+    urls:
+    - https://github.com/kernoio/helm-charts/releases/download/kerno-0.10.0/kerno-0.10.0.tgz
+    version: 0.10.0
+generated: "2025-04-15T16:17:29.408274359Z"
