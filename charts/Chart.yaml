@@ -4,6 +4,6 @@ description: Kerno's Agent chart
 
 type: application
 
-version: $VERSION
+version: 2025.11.2.3
 
 appVersion: "1.16.0"
