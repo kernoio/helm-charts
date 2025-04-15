@@ -1,5 +1,5 @@
 apiVersion: v2
-name: Kerno Agent
+name: kerno-agent
 description: Kerno's Agent chart
 
 type: application
