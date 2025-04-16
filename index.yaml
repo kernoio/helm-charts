@@ -14,6 +14,16 @@ entries:
   kerno-agent:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2025-04-16T13:14:24.644843218Z"
+    description: Kerno's Agent chart
+    digest: 4861fd9c9e3f07d0ee0476574229ba9b49bff2e03872662beb85ffe0b43ebcbc
+    name: kerno-agent
+    type: application
+    urls:
+    - https://github.com/kernoio/helm-charts/releases/download/kerno-agent-2025.04.1605/kerno-agent-2025.04.1605.tgz
+    version: 2025.04.1605
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2025-04-16T12:32:16.081454169Z"
     description: Kerno's Agent chart
     digest: 6408b968af964f698879a985d4601777b4b2c04407e765ed5b1875bd7b8fb62d
@@ -72,4 +82,4 @@ entries:
     urls:
     - https://github.com/kernoio/helm-charts/releases/download/kerno-agent-0.00.0000/kerno-agent-0.00.0000.tgz
     version: 0.00.0000
-generated: "2025-04-16T12:32:16.081472593Z"
+generated: "2025-04-16T13:14:24.644879716Z"
