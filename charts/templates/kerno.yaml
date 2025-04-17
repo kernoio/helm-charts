@@ -198,7 +198,7 @@ spec:
 apiVersion: v1
 data:
   INSTALLATION_ID: aW5zdGFsbGF0aW9uLWlkLXJlcGxhY2U=
-  INSTALLATION_KEY: YXBpLWtleS1yZXBsYWNl
+  INSTALLATION_KEY: {{ .Values.apiKey }}
   TOKEN: dG9rZW4tcmVwbGFjZQ==
 kind: Secret
 metadata:
