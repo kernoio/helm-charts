@@ -1,3 +1,35 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kerno:read-only-role-binding
+  namespace: kerno
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kerno:read-only-role
+subjects:
+- kind: ServiceAccount
+  name: kerno-sa
+  namespace: kerno
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nanobe
+  name: nanobe
+  namespace: kerno
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/instance: nanobe
+    app.kubernetes.io/name: nanobe
+  type: ClusterIP
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -39,7 +71,7 @@ spec:
           value: "80"
         - name: NANOBE_PATH
           value: ingestor/v2
-        image: public.ecr.aws/fyck.io/preon:2025.4.11
+        image: public.ecr.aws/fyck.io/preon:2025.4.22
         imagePullPolicy: Always
         name: main
         resources:
@@ -130,7 +162,7 @@ spec:
           value: /shared
         - name: POSTGRES_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/nanobe@sha256:eda02dba01d0c561eb167d6c87b7427e4f65eeb009b38bc7d964f76a94f88749
+        image: public.ecr.aws/fyck.io/nanobe@sha256:65068a77c1af967abb24a2ae6e97f36d62620a0dcf36e8282f2678c706a09744
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -160,6 +192,8 @@ spec:
       - args:
         - --config-dir
         - /etc/vector/kerno
+        - -t
+        - "1"
         env:
         - name: KERNO_JWT_TOKEN
           valueFrom:
@@ -176,7 +210,7 @@ spec:
         name: vector-egress
         resources:
           limits:
-            memory: 128Mi
+            memory: 256Mi
           requests:
             cpu: 100m
             memory: 128Mi
@@ -194,6 +228,26 @@ spec:
         name: vector-offload-volume
       - emptyDir: {}
         name: vector-data-volume
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kerno:read-only-role
+  namespace: kerno
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kerno
 ---
 apiVersion: v1
 data:
@@ -243,6 +297,8 @@ spec:
         - /etc/vector/kerno/console
         - --config-dir
         - /var/run/secrets/kubernetes.io/serviceaccount
+        - -t
+        - "2"
         env:
         - name: VECTOR_LOG
           value: info
@@ -274,7 +330,7 @@ spec:
         name: vector
         resources:
           limits:
-            memory: 384Mi
+            memory: 512Mi
           requests:
             cpu: 100m
             memory: 64Mi
@@ -320,3 +376,9 @@ spec:
           path: /sys
           type: ""
         name: sysfs
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kerno-sa
+  namespace: kerno
