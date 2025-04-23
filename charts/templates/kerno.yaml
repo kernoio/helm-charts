@@ -136,11 +136,6 @@ spec:
             secretKeyRef:
               key: INSTALLATION_KEY
               name: installation-config
-        - name: INSTALLATION_ID
-          valueFrom:
-            secretKeyRef:
-              key: INSTALLATION_ID
-              name: installation-config
         - name: K8S_LOOKUPS_ENABLED
           value: "true"
         - name: APP_TARGET_KUBE_API
@@ -150,7 +145,7 @@ spec:
         - name: K8S_BRIDGE_HTTP_URL
           value: https://ingestion.kerno.io:443/k8s-bridge
         - name: SAMPLES_BUCKET
-          value: kerno-samples-installation-id-replace
+          value: kerno-samples-
         - name: CLOUD
           value: KUBERNETES
         - name: CONNECT_TO_K8S_BRIDGE
@@ -158,11 +153,11 @@ spec:
         - name: JAVA_TOOL_OPTIONS
           value: -XX:InitialRAMPercentage=50 -XX:MaxRAMPercentage=50 -XX:CompressedClassSpaceSize=256m
             -XX:+UseShenandoahGC -DLOG_LEVEL=INFO
-        - name: VECTOR_OFFLOAD_SOCKET_PATH
+        - name: VECTOR_EGRESS_SHARED_PATH
           value: /shared
         - name: POSTGRES_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/nanobe@sha256:65068a77c1af967abb24a2ae6e97f36d62620a0dcf36e8282f2678c706a09744
+        image: public.ecr.aws/fyck.io/nanobe@sha256:b74b5cc3851357a0b160379700411fd3a78ebca25b41604c336b70b6085e892b
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -195,18 +190,13 @@ spec:
         - -t
         - "1"
         env:
-        - name: KERNO_JWT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: TOKEN
-              name: installation-config
-        - name: VECTOR_OFFLOAD_SOCKET_PATH
+        - name: VECTOR_EGRESS_SHARED_PATH
           value: /shared
         - name: K8S_BRIDGE_BASE_URL
           value: https://ingestion.kerno.io:443/k8s-bridge/vector
         - name: KERNO_CLOUD_INGESTION_URL
           value: https://ingestion.kerno.io:443
-        image: public.ecr.aws/fyck.io/vector-egress@sha256:b1a5c0993404b2faba95443958eebf7a21c2efaff148e33333c912c353d85852
+        image: public.ecr.aws/fyck.io/vector-egress@sha256:14079e3d316196965028762f81cd39eda6a0fa1fe7194c28631bd94336b3e05f
         name: vector-egress
         resources:
           limits:
@@ -219,6 +209,34 @@ spec:
           name: vector-offload-volume
         - mountPath: /vector-data-dir
           name: vector-data-volume
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - 'echo "Retrieving API token from Kerno"; response=$(curl -s -w "%{http_code}"
+          -H "x-kerno-api-key: $API_KEY" https://ingestion.kerno.io:443/k8s-bridge/installation);
+          http_status=$(echo "$response" | rev | cut -c 1-3 | rev); if [ "$http_status"
+          -ne 200 ]; then echo "An error occurred retrieving the API token, exiting";
+          exit 1; fi; mkdir /shared/secrets; echo "$response" | head -c -4 > /shared/secrets/config.json;
+          echo -e "Token saved successfully"'
+        env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: INSTALLATION_KEY
+              name: installation-config
+        image: curlimages/curl@sha256:d43bdb28bae0be0998f3be83199bfb2b81e0a30b034b6d7586ce7e05de34c3fd
+        name: load-token
+        resources:
+          limits:
+            cpu: 50m
+            memory: 32Mi
+          requests:
+            cpu: 50m
+            memory: 32Mi
+        volumeMounts:
+        - mountPath: /shared
+          name: vector-offload-volume
       nodeSelector:
         kubernetes.io/os: linux
       serviceAccountName: kerno-sa
@@ -245,15 +263,8 @@ rules:
   - list
 ---
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: kerno
----
-apiVersion: v1
 data:
-  INSTALLATION_ID: aW5zdGFsbGF0aW9uLWlkLXJlcGxhY2U=
-  INSTALLATION_KEY: {{ .Values.apiKey }}
-  TOKEN: dG9rZW4tcmVwbGFjZQ==
+  INSTALLATION_KEY: {{ .Values.apiKey | b64enc | quote }}
 kind: Secret
 metadata:
   name: installation-config
@@ -303,7 +314,7 @@ spec:
         - name: VECTOR_LOG
           value: info
         - name: BUCKET_NAME
-          value: kerno-samples-installation-id-replace
+          value: kerno-samples-
         - name: VECTOR_SELF_NODE_NAME
           valueFrom:
             fieldRef:
