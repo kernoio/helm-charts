@@ -14,5 +14,6 @@ helm repo add kerno https://kernoio.github.io/helm-charts
 
 helm install kerno-agent kerno/agent \
   --create-namespace \
+  --namespace kerno \
   --set api-key="<KERNO_API_KEY>"
 ```
