@@ -1,4 +1,25 @@
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kerno:read-only-role
+  namespace: kerno
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kerno-sa
+  namespace: kerno
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: kerno:read-only-role-binding
@@ -11,102 +32,6 @@ subjects:
 - kind: ServiceAccount
   name: kerno-sa
   namespace: kerno
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: nanobe
-  name: nanobe
-  namespace: kerno
-spec:
-  ports:
-  - name: http
-    port: 80
-    protocol: TCP
-    targetPort: 8080
-  selector:
-    app.kubernetes.io/instance: nanobe
-    app.kubernetes.io/name: nanobe
-  type: ClusterIP
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  labels:
-    app.kubernetes.io/app: nanobe
-    app.kubernetes.io/component: preon
-    app.kubernetes.io/part-of: nanobe
-  name: preon
-  namespace: kerno
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/app: nanobe
-      app.kubernetes.io/component: preon
-      app.kubernetes.io/part-of: nanobe
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/app: nanobe
-        app.kubernetes.io/component: preon
-        app.kubernetes.io/part-of: nanobe
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: eks.amazonaws.com/compute-type
-                operator: NotIn
-                values:
-                - fargate
-      containers:
-      - env:
-        - name: LOG_LEVEL
-          value: info
-        - name: NANOBE_HOST
-          value: nanobe
-        - name: NANOBE_PORT
-          value: "80"
-        - name: NANOBE_PATH
-          value: ingestor/v2
-        image: public.ecr.aws/fyck.io/preon:2025.4.22
-        imagePullPolicy: Always
-        name: main
-        resources:
-          limits:
-            memory: 128Mi
-          requests:
-            cpu: 50m
-            memory: 64Mi
-        securityContext:
-          capabilities:
-            add:
-            - SYS_ADMIN
-          privileged: true
-        volumeMounts:
-        - mountPath: /host
-          name: host-root
-          readOnly: true
-        - mountPath: /sys
-          name: host-sys
-          readOnly: true
-      hostPID: true
-      nodeSelector:
-        kubernetes.io/os: linux
-      terminationGracePeriodSeconds: 10
-      tolerations:
-      - operator: Exists
-      volumes:
-      - hostPath:
-          path: /
-          type: Directory
-        name: host-root
-      - hostPath:
-          path: /sys
-          type: Directory
-        name: host-sys
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -157,7 +82,7 @@ spec:
           value: /shared
         - name: POSTGRES_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/nanobe@sha256:b74b5cc3851357a0b160379700411fd3a78ebca25b41604c336b70b6085e892b
+        image: public.ecr.aws/fyck.io/nanobe@sha256:6f2a79e7608bd93c4d96c8273a8cf5b81f2f369a25a8ba1d352c121143841295
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -187,6 +112,8 @@ spec:
       - args:
         - --config-dir
         - /etc/vector/kerno
+        - --config-dir
+        - /etc/vector/kerno/cloud
         - -t
         - "1"
         env:
@@ -196,7 +123,7 @@ spec:
           value: https://ingestion.kerno.io:443/k8s-bridge/vector
         - name: KERNO_CLOUD_INGESTION_URL
           value: https://ingestion.kerno.io:443
-        image: public.ecr.aws/fyck.io/vector-egress@sha256:14079e3d316196965028762f81cd39eda6a0fa1fe7194c28631bd94336b3e05f
+        image: public.ecr.aws/fyck.io/vector-egress@sha256:a70afe4640d42891e567c1ac8aefbac6b3cf6d6bea5067fa04d1e73c8ac1ab16
         name: vector-egress
         resources:
           limits:
@@ -247,29 +174,101 @@ spec:
       - emptyDir: {}
         name: vector-data-volume
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+apiVersion: apps/v1
+kind: DaemonSet
 metadata:
-  name: kerno:read-only-role
+  labels:
+    app.kubernetes.io/app: nanobe
+    app.kubernetes.io/component: preon
+    app.kubernetes.io/part-of: nanobe
+  name: preon
   namespace: kerno
-rules:
-- apiGroups:
-  - '*'
-  resources:
-  - '*'
-  verbs:
-  - get
-  - watch
-  - list
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: nanobe
+      app.kubernetes.io/component: preon
+      app.kubernetes.io/part-of: nanobe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/app: nanobe
+        app.kubernetes.io/component: preon
+        app.kubernetes.io/part-of: nanobe
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                - fargate
+      containers:
+      - env:
+        - name: LOG_LEVEL
+          value: info
+        - name: NANOBE_HOST
+          value: nanobe
+        - name: NANOBE_PORT
+          value: "80"
+        - name: NANOBE_PATH
+          value: ingestor/v2
+        image: public.ecr.aws/fyck.io/preon:2025.5.8
+        imagePullPolicy: Always
+        name: main
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          capabilities:
+            add:
+            - SYS_ADMIN
+          privileged: true
+        volumeMounts:
+        - mountPath: /host
+          name: host-root
+          readOnly: true
+        - mountPath: /sys
+          name: host-sys
+          readOnly: true
+      hostPID: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - operator: Exists
+      volumes:
+      - hostPath:
+          path: /
+          type: Directory
+        name: host-root
+      - hostPath:
+          path: /sys
+          type: Directory
+        name: host-sys
 ---
 apiVersion: v1
-data:
-  INSTALLATION_KEY: {{ .Values.apiKey | b64enc | quote }}
-kind: Secret
+kind: Service
 metadata:
-  name: installation-config
+  labels:
+    app: nanobe
+  name: nanobe
   namespace: kerno
-type: Opaque
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/instance: nanobe
+    app.kubernetes.io/name: nanobe
+  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -336,7 +335,7 @@ spec:
           value: /host/sys
         - name: NANOBE_STACK_TRACE_AGGREGATION_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/vector-agent@sha256:5fede6b27cce7a4203f26eb942a00188871742d312c1f961780745bf1f641e6b
+        image: public.ecr.aws/fyck.io/vector-agent@sha256:e53553a0a718a57fe4e1b21191e9758ae1e04e2a98a21302540c79ff0df25cf9
         imagePullPolicy: Always
         name: vector
         resources:
@@ -389,7 +388,10 @@ spec:
         name: sysfs
 ---
 apiVersion: v1
-kind: ServiceAccount
+data:
+  INSTALLATION_KEY: {{ .Values.apiKey | b64enc | quote }}
+kind: Secret
 metadata:
-  name: kerno-sa
+  name: installation-config
   namespace: kerno
+type: Opaque
