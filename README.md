@@ -1,4 +1,4 @@
-# Kerno Agent Helm Chart (Dev)
+# Kerno Agent Helm Chart
 
 ## Add the Helm Repository
 
