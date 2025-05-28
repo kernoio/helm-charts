@@ -82,7 +82,7 @@ spec:
           value: /shared
         - name: POSTGRES_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/nanobe@sha256:419d38a375b042d1143e232a116927177b46a469c4bc5dd82f8505816b93a1b7
+        image: public.ecr.aws/fyck.io/nanobe@sha256:e78b35fc7c0347a59b7017263044e6ff7ce8e33abc656b28fc0d9819468eff8d
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -114,16 +114,20 @@ spec:
         - /etc/vector/kerno
         - --config-dir
         - /etc/vector/kerno/cloud
+        - --config-dir
+        - /etc/vector/kerno/
         - -t
         - "1"
         env:
+        - name: BUCKET_NAME
+          value: {{ .Values.bucketName | default "kerno-samples-" }}
         - name: VECTOR_EGRESS_SHARED_PATH
           value: /shared
         - name: K8S_BRIDGE_BASE_URL
           value: https://ingestion.kerno.io:443/k8s-bridge/vector
         - name: KERNO_CLOUD_INGESTION_URL
           value: https://ingestion.kerno.io:443
-        image: public.ecr.aws/fyck.io/vector-egress@sha256:a70afe4640d42891e567c1ac8aefbac6b3cf6d6bea5067fa04d1e73c8ac1ab16
+        image: public.ecr.aws/fyck.io/vector-egress@sha256:19f1b131e733fc2567cc850074b6413aba705297507188f5dd2ce76403238722
         name: vector-egress
         resources:
           limits:
@@ -261,7 +265,7 @@ spec:
           value: /host/sys
         - name: NANOBE_STACK_TRACE_AGGREGATION_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/vector-agent@sha256:e53553a0a718a57fe4e1b21191e9758ae1e04e2a98a21302540c79ff0df25cf9
+        image: public.ecr.aws/fyck.io/vector-agent@sha256:1d0fc91c7a9d86bffe30c04a5c8e3d4cc4ce27bfe5cc311782c1d826df839714
         imagePullPolicy: Always
         name: vector
         resources:
