@@ -82,7 +82,7 @@ spec:
           value: /shared
         - name: POSTGRES_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/nanobe@sha256:19c0d69f4dfea1a28c487a05458caa4cac4e768252a67bdb0ca7dc4b2b5d1ba0
+        image: public.ecr.aws/fyck.io/nanobe@sha256:2932e433a3d85cf0ec699314186f0fab6765c410427ab3f69f45e3446b71a0ce
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -144,8 +144,12 @@ spec:
       - command:
         - /bin/sh
         - -c
-        - 'echo "Retrieving API token from Kerno"; response=$(curl -s -w "%{http_code}"
-          -H "x-kerno-api-key: $API_KEY" https://ingestion.kerno.io:443/k8s-bridge/installation);
+        - 'TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" KUBE_SYSTEM_UID=$(curl
+          -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization:
+          Bearer $TOKEN" https://kubernetes.default.svc/api/v1/namespaces/kube-system
+          | grep ''"uid"'' | head -n1 | awk -F''"'' ''{print $4}''); echo "Retrieving
+          API token from Kerno"; response=$(curl -s -w "%{http_code}" -H "x-kerno-api-key:
+          $API_KEY" -H "kube-system-uid: $KUBE_SYSTEM_UID" https://ingestion.kerno.io:443/k8s-bridge/token-handshake);
           http_status=$(echo "$response" | rev | cut -c 1-3 | rev); if [ "$http_status"
           -ne 200 ]; then echo "An error occurred retrieving the API token, exiting";
           exit 1; fi; mkdir /shared/secrets; echo "$response" | head -c -4 > /shared/secrets/config.json;
@@ -234,6 +238,8 @@ spec:
       containers:
       - args:
         - --config-dir
+        - "/etc/vector/kerno/{{ .Values.cloud | default "ephemeral" | lower }}"
+        - --config-dir
         - /var/run/secrets/kubernetes.io/serviceaccount
         - -t
         - "2"
@@ -264,7 +270,7 @@ spec:
           value: /host/sys
         - name: NANOBE_STACK_TRACE_AGGREGATION_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/vector-agent@sha256:ae5421c210ccd87ef1495b94510e7b4edd12779cff26f57db742eb6628f7cd97
+        image: public.ecr.aws/fyck.io/vector-agent@sha256:3710ba5060a1cef752f29f860afdff8a3f35cc6061e71abef61312be88a58c84
         imagePullPolicy: Always
         name: vector
         resources:
