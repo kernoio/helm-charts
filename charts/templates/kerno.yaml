@@ -1,38 +1,3 @@
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: nanobe
-  name: vector-egress
-  namespace: kerno
-spec:
-  ports:
-  - name: http
-    port: 6000
-    protocol: TCP
-  selector:
-    app.kubernetes.io/instance: nanobe
-    app.kubernetes.io/name: nanobe
-  type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: nanobe
-  name: nanobe
-  namespace: kerno
-spec:
-  ports:
-  - name: http
-    port: 80
-    protocol: TCP
-    targetPort: 8080
-  selector:
-    app.kubernetes.io/instance: nanobe
-    app.kubernetes.io/name: nanobe
-  type: ClusterIP
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -47,6 +12,11 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: nanobe
       app.kubernetes.io/name: nanobe
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -82,7 +52,7 @@ spec:
           value: /shared
         - name: POSTGRES_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/nanobe@sha256:2932e433a3d85cf0ec699314186f0fab6765c410427ab3f69f45e3446b71a0ce
+        image: public.ecr.aws/fyck.io/nanobe@sha256:a867b21c33949b7d3a5687e15a400eb528ca2a16b0fd0b6b678f1e44c8e6fb3f
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -127,7 +97,8 @@ spec:
           value: https://ingestion.kerno.io:443/k8s-bridge/vector
         - name: KERNO_CLOUD_INGESTION_URL
           value: https://ingestion.kerno.io:443
-        image: public.ecr.aws/fyck.io/vector-egress@sha256:15caf1084f2a3457c0e551d22e4d21772fc8d47ae3516723cf82af7637c2b4d6
+        image: public.ecr.aws/fyck.io/vector-egress@sha256:c77c4a98ba4feac794e0542978d581d471e9f0ce0db135cd6ec3a8b64ec18c2a
+        imagePullPolicy: Always
         name: vector-egress
         resources:
           limits:
@@ -149,10 +120,11 @@ spec:
           Bearer $TOKEN" https://kubernetes.default.svc/api/v1/namespaces/kube-system
           | grep ''"uid"'' | head -n1 | awk -F''"'' ''{print $4}''); echo "Retrieving
           API token from Kerno"; response=$(curl -s -w "%{http_code}" -H "x-kerno-api-key:
-          $API_KEY" -H "kube-system-uid: $KUBE_SYSTEM_UID" https://ingestion.kerno.io:443/k8s-bridge/token-handshake);
-          http_status=$(echo "$response" | rev | cut -c 1-3 | rev); if [ "$http_status"
-          -ne 200 ]; then echo "An error occurred retrieving the API token, exiting";
-          exit 1; fi; mkdir /shared/secrets; echo "$response" | head -c -4 > /shared/secrets/config.json;
+          $API_KEY" -H "installation-type: helm" -H "kube-system-uid: $KUBE_SYSTEM_UID"
+          https://ingestion.kerno.io:443/k8s-bridge/token-handshake); http_status=$(echo
+          "$response" | rev | cut -c 1-3 | rev); if [ "$http_status" -ne 200 ]; then
+          echo "An error occurred retrieving the API token, exiting"; exit 1; fi;
+          mkdir /shared/secrets; echo "$response" | head -c -4 > /shared/secrets/config.json;
           echo -e "Token saved successfully"'
         env:
         - name: API_KEY
@@ -184,25 +156,6 @@ spec:
         name: vector-offload-volume
       - emptyDir: {}
         name: vector-data-volume
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: kerno-sa
-  namespace: kerno
-  {{- with .Values.serviceAccountAnnotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
----
-apiVersion: v1
-data:
-  INSTALLATION_KEY: {{ .Values.apiKey | b64enc | quote }}
-kind: Secret
-metadata:
-  name: installation-config
-  namespace: kerno
-type: Opaque
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -248,7 +201,6 @@ spec:
           value: info
         - name: BUCKET_NAME
           value: {{ .Values.bucketName | default "kerno-samples-" }}
-        - name: INSTALLATION_ID
         - name: VECTOR_SELF_NODE_NAME
           valueFrom:
             fieldRef:
@@ -270,7 +222,7 @@ spec:
           value: /host/sys
         - name: NANOBE_STACK_TRACE_AGGREGATION_ENABLED
           value: "true"
-        image: public.ecr.aws/fyck.io/vector-agent@sha256:3710ba5060a1cef752f29f860afdff8a3f35cc6061e71abef61312be88a58c84
+        image: public.ecr.aws/fyck.io/vector-agent@sha256:3583b91323fdc918c293520ef3d4107fb5af0f09d43f71badef801adc660b02b
         imagePullPolicy: Always
         name: vector
         resources:
@@ -324,35 +276,10 @@ spec:
           path: /sys
           type: ""
         name: sysfs
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: kerno:read-only-role
-  namespace: kerno
-rules:
-- apiGroups:
-  - '*'
-  resources:
-  - '*'
-  verbs:
-  - get
-  - watch
-  - list
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: kerno:read-only-role-binding
-  namespace: kerno
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: kerno:read-only-role
-subjects:
-- kind: ServiceAccount
-  name: kerno-sa
-  namespace: kerno
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 100%
+    type: RollingUpdate
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -431,3 +358,90 @@ spec:
           path: /sys
           type: Directory
         name: host-sys
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 100%
+    type: RollingUpdate
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kerno:read-only-role-binding
+  namespace: kerno
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kerno:read-only-role
+subjects:
+- kind: ServiceAccount
+  name: kerno-sa
+  namespace: kerno
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kerno-sa
+  namespace: kerno
+  {{- with .Values.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nanobe
+  name: vector-egress
+  namespace: kerno
+spec:
+  ports:
+  - name: http
+    port: 6000
+    protocol: TCP
+  selector:
+    app.kubernetes.io/instance: nanobe
+    app.kubernetes.io/name: nanobe
+  type: ClusterIP
+---
+apiVersion: v1
+data:
+  INSTALLATION_KEY: {{ .Values.apiKey | b64enc | quote }}
+kind: Secret
+metadata:
+  name: installation-config
+  namespace: kerno
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nanobe
+  name: nanobe
+  namespace: kerno
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/instance: nanobe
+    app.kubernetes.io/name: nanobe
+  type: ClusterIP
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kerno:read-only-role
+  namespace: kerno
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - get
+  - watch
+  - list
